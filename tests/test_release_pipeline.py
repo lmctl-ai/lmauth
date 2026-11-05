@@ -115,5 +115,9 @@ class SealedPolicy(unittest.TestCase):
   good += [{'name':'deliberate-failure-test','status':'completed','conclusion':'skipped'}]
   broker['wait_for_qualification'](api,42,'a'*40,False,lambda seconds:pauses.append(seconds),lambda client,run_id:good)
   self.assertEqual(api.attempts,2);self.assertEqual(pauses,[3])
+ def test_public_broker_retains_the_trusted_release_manager_boundary(self):
+  source=text('scripts/qualification_broker.py')
+  self.assertIn('import json,os,subprocess,time',source)
+  self.assertIn("subprocess.run(['python3','scripts/manage-qualified-draft.py',mode",source)
 
 if __name__=='__main__':unittest.main()

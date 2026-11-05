@@ -1,5 +1,5 @@
 """Trusted writer/worker coordination. No candidate executable runs here."""
-import json,os,time
+import json,os,subprocess,time
 from pathlib import Path
 from release_policy import API,CONFIG,PUBLIC,TransientGitHubError,positive,digest,summary,validate_files
 WORKFLOW='.github/workflows/qualify-platforms.yml'
