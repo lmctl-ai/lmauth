@@ -6,6 +6,9 @@ set -euo pipefail
 prefix=${1:?absolute private prefix}
 case $prefix in /*) ;; *) echo "prefix must be absolute" >&2; exit 2;; esac
 mkdir -p "$prefix"
+mkdir -p "$prefix/bin"
+cp "$(command -v node)" "$prefix/bin/node"
+chmod 0700 "$prefix/bin/node"
 LMMOCK_TAG=v0.1.105
 LMMOCK_COMMIT=e9d6d7ffe8bf68f42bbfa8438130f2f2aa538542
 LMCONN_COMMIT=83cdec653e336167b55d5c1b4e5cd91f9572fce9
@@ -46,7 +49,7 @@ fi
 test "$(git -C "$prefix/lmconn-src" rev-parse HEAD)" = "$LMCONN_COMMIT"
 npm install --prefix "$prefix/lmconn" --install-links "$prefix/lmconn-src" --no-audit --no-fund >&2
 cat <<OUT
-export LMAUTH_NODE=$(command -v node)
+export LMAUTH_NODE=$prefix/bin/node
 export LMAUTH_LMCONN_ENTRY=$prefix/lmconn/node_modules/@lmctl-ai/lmconn/bin/lmconn.js
 export LMAUTH_LMMOCK=$prefix/lmmock
 export LMAUTH_LMMOCK_GITHUB=$prefix/build/github-device-flow.lmcode
