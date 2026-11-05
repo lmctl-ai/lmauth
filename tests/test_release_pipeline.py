@@ -1,6 +1,7 @@
 """Offline release regression controls. No network, actual tokens or release mutation."""
 import hashlib,json,os,runpy,subprocess,sys,tempfile,unittest
 from pathlib import Path
+from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 
 def text(file):return (ROOT/file).read_text()
@@ -119,5 +120,14 @@ class SealedPolicy(unittest.TestCase):
   source=text('scripts/qualification_broker.py')
   self.assertIn('import json,os,subprocess,time',source)
   self.assertIn("subprocess.run(['python3','scripts/manage-qualified-draft.py',mode",source)
+ def test_api_errors_report_status_without_echoing_response_urls(self):
+  policy=runpy.run_path(str(ROOT/'scripts/release_policy.py'))
+  class Result:
+   returncode=1;stdout=b'';stderr=b'gh: HTTP 422: Validation Failed (https://api.github.com/repos/example/release)\n'
+  with patch.object(policy['subprocess'],'run',return_value=Result):
+   try:policy['API']().request('releases',method='POST',data={})
+   except ValueError as error:
+    self.assertIn('HTTP 422: Validation Failed',str(error));self.assertNotIn('https://',str(error))
+   else:self.fail('HTTP failure was accepted')
 
 if __name__=='__main__':unittest.main()

@@ -124,7 +124,11 @@ class API:
    detail=result.stderr.decode('utf-8','replace').lower()
    if any(marker in detail for marker in ('http 500:', 'http 502:', 'http 503:', 'http 504:', 'bad gateway', 'service unavailable', 'gateway timeout')):
     raise TransientGitHubError('temporary GitHub API failure')
-   raise ValueError('GitHub API '+method+' '+path+' failed (gh exit '+str(result.returncode)+')')
+   lines=result.stderr.decode('utf-8','replace').splitlines();first=lines[0] if lines else '';marker='HTTP ';pos=first.find(marker)
+   if pos>=0:
+    status,sep,rest=first[pos+len(marker):].partition(':');message=rest.strip().partition(' (')[0] if sep else '';reason='HTTP '+status.strip()+(': '+message if message else '')
+   else:reason='gh exit '+str(result.returncode)
+   raise ValueError('GitHub API '+method+' '+path+' failed ('+reason+')')
   content=result.stdout;etag=None
   if with_headers:
    # gh --include prints HTTP headers before the response, sometimes with LF only.
