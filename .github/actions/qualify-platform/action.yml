@@ -1,0 +1,96 @@
+name: Qualify one lmauth release platform
+description: Install and exercise the exact sealed public draft asset without publication credentials
+inputs:
+  tag:
+    description: Candidate release tag selected by the trusted gate
+    required: true
+  artifact:
+    description: Candidate artifact uploaded by the trusted public broker
+    required: true
+  parent_run:
+    description: Parent broker run that owns this artifact
+    required: true
+  asset:
+    description: Exact platform binary asset in the candidate
+    required: true
+  name:
+    description: Platform label for the summary
+    required: true
+  sums_sha256:
+    description: Independently trusted checksum identity
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: 24
+    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      with:
+        python-version: '3.12'
+    - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
+      with:
+        artifact-ids: ${{ inputs.artifact }}
+        merge-multiple: true
+        run-id: ${{ inputs.parent_run }}
+        github-token: ${{ github.token }}
+        path: draft-assets
+    - name: Verify the credential-free candidate handoff
+      shell: bash
+      env:
+        EXPECTED_SUMS_SHA: ${{ inputs.sums_sha256 }}
+      run: python3 scripts/check-local-candidate.py draft-assets "$EXPECTED_SUMS_SHA"
+    - name: Install the exact draft binary through lmscript
+      shell: bash
+      env:
+        DRAFT_TAG: ${{ inputs.tag || github.event.client_payload.tag }}
+        DRAFT_ASSET: ${{ inputs.asset }}
+      run: |
+        set -euo pipefail
+        npm install --prefix "$RUNNER_TEMP/compiler" --no-save --package-lock=false @lmctl-ai/lmctl@0.2.462 --no-audit --no-fund
+        compiler="$RUNNER_TEMP/compiler/node_modules/.bin/lmscript"
+        if [ "$RUNNER_OS" = Windows ]; then compiler="$compiler.cmd"; fi
+        python3 scripts/install-draft-host.py --compiler "$compiler" --tag "$DRAFT_TAG" --asset "$DRAFT_ASSET" --candidate draft-assets
+    - name: Check candidate CLI, dry manifest, canary and Windows fail-closed store
+      shell: bash
+      env:
+        PLATFORM_NAME: ${{ inputs.name }}
+        EVIDENCE_DIR: ${{ runner.temp }}/lmauth-qualification-${{ inputs.name }}
+      run: python3 tests/qualify-lmauth.py --binary "$LMAUTH_BIN" --platform "$PLATFORM_NAME" --evidence "$EVIDENCE_DIR"
+    - name: Prepare pinned lmmock and lmconn in an isolated prefix
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        prefix="$RUNNER_TEMP/lmauth-integration"
+        bash tests/prepare-integration.sh "$prefix" > "$RUNNER_TEMP/lmauth-integration-env"
+        source "$RUNNER_TEMP/lmauth-integration-env"
+        {
+          echo "LMAUTH_NODE=$LMAUTH_NODE"
+          echo "LMAUTH_LMCONN_ENTRY=$LMAUTH_LMCONN_ENTRY"
+          echo "LMAUTH_LMMOCK=$LMAUTH_LMMOCK"
+          echo "LMAUTH_LMMOCK_GITHUB=$LMAUTH_LMMOCK_GITHUB"
+          echo "LMAUTH_LMMOCK_CONFIG=$LMAUTH_LMMOCK_CONFIG"
+        } >> "$GITHUB_ENV"
+    - name: Exercise released lmmock and real lmconn with synthetic token
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        EVIDENCE_DIR: ${{ runner.temp }}/lmauth-mock-lmconn-${{ inputs.name }}
+        LMAUTH_PRIVATE_TMP: ${{ runner.temp }}
+      run: python3 tests/lmmock-terminal-e2e.py --binary "$LMAUTH_BIN" --evidence "$EVIDENCE_DIR" --node "$LMAUTH_NODE" --lmconn-entry "$LMAUTH_LMCONN_ENTRY" --lmmock "$LMAUTH_LMMOCK" --lmcode "$LMAUTH_LMMOCK_GITHUB" --config "$LMAUTH_LMMOCK_CONFIG"
+    - name: Verify signal shutdown of an active local page
+      if: runner.os != 'Windows'
+      shell: bash
+      run: python3 tests/session-signal.py --binary "$LMAUTH_BIN"
+    - name: Summarize platform qualification
+      if: always()
+      shell: bash
+      env:
+        DRAFT_TAG: ${{ inputs.tag || github.event.client_payload.tag }}
+        PLATFORM_NAME: ${{ inputs.name }}
+      run: |
+        echo "## $PLATFORM_NAME lmauth qualification" >> "$GITHUB_STEP_SUMMARY"
+        echo "Tag: $DRAFT_TAG" >> "$GITHUB_STEP_SUMMARY"
+        echo "Result: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+        if [ "$PLATFORM_NAME" = windows-x64 ]; then echo "Windows native credential storage is intentionally fail-closed: private_store_acl_not_implemented." >> "$GITHUB_STEP_SUMMARY"; fi

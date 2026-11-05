@@ -1,0 +1,5 @@
+let recipe = auth_plan("lmctl-ai", "lmpdf");
+let session = auth_present(recipe);
+let credential = auth_collect(session);
+let verification = auth_verify(credential);
+$return = auth_store(credential);

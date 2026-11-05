@@ -1,0 +1,9 @@
+{
+  "product": "lmauth",
+  "public_repository": "lmctl-ai/lmauth",
+  "private_repository": "lmctlhq/lmauth",
+  "workflow": ".github/workflows/ci.yml",
+  "branch": "main",
+  "payloads": ["lmauth-linux-x64", "lmauth-linux-arm64", "lmauth-macos-arm64", "lmauth-macos-x64", "lmauth-windows-x64.exe", "LICENSE"],
+  "private_jobs": ["version", "Build and test linux-x64", "Build and test linux-arm64", "Build and test macos-arm64", "Build and test macos-x64", "Build and test windows-x64", "candidate", "private-smoke"]
+}
