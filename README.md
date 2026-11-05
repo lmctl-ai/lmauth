@@ -7,7 +7,7 @@ lmauth provides a GitHub authorization recipe, a local operator page or hidden t
 ## Install
 
 ```sh
-lmscript install github:lmctl-ai/lmauth@v0.1.8
+lmscript install github:lmctl-ai/lmauth@v0.1.9
 lmauth --version
 ```
 
