@@ -1,7 +1,7 @@
 """Trusted writer/worker coordination. No candidate executable runs here."""
-import json,os,subprocess,time
+import json,os,time
 from pathlib import Path
-from release_policy import API,CONFIG,PUBLIC,positive,digest,summary,validate_files
+from release_policy import API,CONFIG,PUBLIC,TransientGitHubError,positive,digest,summary,validate_files
 WORKFLOW='.github/workflows/qualify-platforms.yml'
 PLATFORMS={'Qualify macos-arm64','Qualify macos-x64','Qualify linux-x64','Qualify linux-arm64','Qualify windows-x64'}
 
@@ -22,6 +22,18 @@ def jobs(api,run_id):
   if len(data['jobs'])<100:return out
   page+=1
 
+def wait_for_qualification(api,run_id,source_sha,throwaway,pause=time.sleep,fetch_jobs=jobs):
+ while True:
+  try:
+   run=api.request('actions/runs/'+str(run_id))
+   if run.get('status')!='completed':
+    pause(3);continue
+   validate_qualification(run,fetch_jobs(api,run_id),source_sha,throwaway)
+   return run
+  except TransientGitHubError:
+   print('Temporary GitHub Actions API failure; qualification status check will continue.',flush=True)
+   pause(3)
+
 def broker():
  api=API();root=Path('draft-assets');manifest,seal=validate_files(root)
  parent=positive(os.environ['GITHUB_RUN_ID']);attempt=positive(os.environ['GITHUB_RUN_ATTEMPT']);artifact=positive(os.environ['ARTIFACT_ID']);artifact_digest=os.environ['ARTIFACT_DIGEST'];tag=manifest['tag']
@@ -41,14 +53,12 @@ def broker():
   if matches:break
   time.sleep(3)
  run_id=matches[0]['id'];summary('Qualification run: https://github.com/'+PUBLIC+'/actions/runs/'+str(run_id));print('Waiting for credential-free qualification run '+str(run_id),flush=True)
- result=subprocess.run(['gh','run','watch',str(run_id),'--repo',PUBLIC,'--exit-status'])
- run=api.request('actions/runs/'+str(run_id));validate_qualification(run,jobs(api,run_id),os.environ['GITHUB_SHA'],manifest['deliberate_failure'])
+ wait_for_qualification(api,run_id,os.environ['GITHUB_SHA'],manifest['deliberate_failure'])
  mode='cleanup' if manifest['deliberate_failure'] else 'promote'
  request=json.loads((root/'candidate-request.json').read_text())
  env=dict(os.environ,DRAFT_TAG=tag,SEAL_ASSET_ID=str(request['seal_asset_id']),BUNDLE_ASSET_ID=str(request['bundle_asset_id']),FREEZE_SHA=request['seal_sha256'],QUALIFICATION_RUN_ID=str(run_id))
  subprocess.run(['python3','scripts/manage-qualified-draft.py',mode,str(root)],env=env,check=True)
  if manifest['deliberate_failure']:raise SystemExit('Deliberate public qualification failure proved; only the sealed throwaway was revoked and cleaned.')
- if result.returncode:raise ValueError('watch reported failure despite successful qualification API state')
 
 if __name__=='__main__':
  try:broker()

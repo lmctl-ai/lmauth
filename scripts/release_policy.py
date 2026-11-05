@@ -108,6 +108,9 @@ def validate_files(root):
 def credential_free(env):
  return {k:v for k,v in env.items() if k not in {'GH_TOKEN','GITHUB_TOKEN','GH_ENTERPRISE_TOKEN','GITHUB_ENTERPRISE_TOKEN','ACTIONS_ID_TOKEN_REQUEST_TOKEN','ACTIONS_ID_TOKEN_REQUEST_URL'}}
 
+class TransientGitHubError(ValueError):
+ pass
+
 class API:
  def __init__(self,repo=PUBLIC):self.repo=repo
  def request(self,path,method='GET',data=None,headers=None,raw=False,with_headers=False):
@@ -117,7 +120,11 @@ class API:
   args.append('repos/'+self.repo+'/'+path)
   if data is not None:args+=['--input','-']
   result=subprocess.run(args,input=None if data is None else json.dumps(data).encode(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-  if result.returncode:raise ValueError('GitHub API '+method+' '+path+' failed (gh exit '+str(result.returncode)+')')
+  if result.returncode:
+   detail=result.stderr.decode('utf-8','replace').lower()
+   if any(marker in detail for marker in ('http 500:', 'http 502:', 'http 503:', 'http 504:', 'bad gateway', 'service unavailable', 'gateway timeout')):
+    raise TransientGitHubError('temporary GitHub API failure')
+   raise ValueError('GitHub API '+method+' '+path+' failed (gh exit '+str(result.returncode)+')')
   content=result.stdout;etag=None
   if with_headers:
    # gh --include prints HTTP headers before the response, sometimes with LF only.

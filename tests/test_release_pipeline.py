@@ -90,4 +90,20 @@ class SealedPolicy(unittest.TestCase):
   verify=text('scripts/verify-draft-candidate.py')
   self.assertIn('verify_attestation',verify)
 
+ def test_public_broker_retries_transient_actions_api_failure_without_a_deadline(self):
+  broker=runpy.run_path(str(ROOT/'scripts/qualification_broker.py'))
+  transient=broker['TransientGitHubError']
+  class FlakyAPI:
+   attempts=0
+   def request(self,path):
+    self.attempts+=1
+    if self.attempts==1:raise transient('synthetic 502')
+    return {'path':broker['WORKFLOW'],'head_branch':'main','head_sha':'a'*40,'event':'repository_dispatch','status':'completed','conclusion':'success'}
+  api=FlakyAPI();pauses=[]
+  good=[{'name':'candidate','status':'completed','conclusion':'success'}]
+  good += [{'name':name,'status':'completed','conclusion':'success'} for name in broker['PLATFORMS']]
+  good += [{'name':'deliberate-failure-test','status':'completed','conclusion':'skipped'}]
+  broker['wait_for_qualification'](api,42,'a'*40,False,lambda seconds:pauses.append(seconds),lambda client,run_id:good)
+  self.assertEqual(api.attempts,2);self.assertEqual(pauses,[3])
+
 if __name__=='__main__':unittest.main()
