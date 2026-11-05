@@ -62,8 +62,10 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        prefix="$RUNNER_TEMP/lmauth-integration"
-        bash tests/prepare-integration.sh "$prefix" > "$RUNNER_TEMP/lmauth-integration-env"
+        lmauth_prefix="/tmp/lmauth-integration-${GITHUB_RUN_ID}"
+        mkdir -m 700 "$lmauth_prefix"
+        export NPM_CONFIG_USERCONFIG=/dev/null
+        bash tests/prepare-integration.sh "$lmauth_prefix" > "$RUNNER_TEMP/lmauth-integration-env"
         source "$RUNNER_TEMP/lmauth-integration-env"
         {
           echo "LMAUTH_NODE=$LMAUTH_NODE"
@@ -77,7 +79,6 @@ runs:
       shell: bash
       env:
         EVIDENCE_DIR: ${{ runner.temp }}/lmauth-mock-lmconn-${{ inputs.name }}
-        LMAUTH_PRIVATE_TMP: ${{ runner.temp }}
       run: python3 tests/lmmock-terminal-e2e.py --binary "$LMAUTH_BIN" --evidence "$EVIDENCE_DIR" --node "$LMAUTH_NODE" --lmconn-entry "$LMAUTH_LMCONN_ENTRY" --lmmock "$LMAUTH_LMMOCK" --lmcode "$LMAUTH_LMMOCK_GITHUB" --config "$LMAUTH_LMMOCK_CONFIG"
     - name: Verify signal shutdown of an active local page
       if: runner.os != 'Windows'

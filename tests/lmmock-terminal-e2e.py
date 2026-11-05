@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Use the pinned lmmock and real lmconn with a public synthetic credential."""
-import argparse, errno, fcntl, json, os, pathlib, pty, signal, subprocess, tempfile, termios, time
+import argparse, errno, fcntl, json, os, pathlib, pty, shutil, signal, subprocess, tempfile, termios, time
 TOKEN = "github_pat_mock_fine_grained_token"
 def identity(pid):
     return subprocess.check_output(["ps", "-p", str(pid), "-o", "lstart=,command="], text=True).strip()
@@ -14,7 +14,8 @@ def main():
     for name in ("binary","evidence","node","lmconn-entry","lmmock","lmcode","config"):
         p.add_argument("--"+name,required=True,type=pathlib.Path)
     a=p.parse_args(); evidence=a.evidence.resolve(); evidence.mkdir(parents=True,exist_ok=False,mode=0o700)
-    private_root=pathlib.Path(os.environ.get("LMAUTH_PRIVATE_TMP", "/var/tmp")).resolve()
+    private_root=pathlib.Path(tempfile.mkdtemp(prefix="lmauth-private-",dir="/tmp")).resolve()
+    private_root.chmod(0o700)
     private_home=private_root/"lmauth-home"; private_home.mkdir(mode=0o700,exist_ok=True)
     work=pathlib.Path(tempfile.mkdtemp(prefix="lmauth-mock-",dir=private_root)); ready=work/"ready.json"
     env={"HOME":str(private_home),"PATH":os.environ["PATH"]}
@@ -66,5 +67,7 @@ def main():
         if child.poll() is None:
             if identity(child.pid)!=child_id: raise SystemExit("candidate process identity changed; refusing signal")
             child.send_signal(signal.SIGTERM);child.wait()
-        os.close(master);stop_owned(mock,mock_id)
+        os.close(master)
+        try: stop_owned(mock,mock_id)
+        finally: shutil.rmtree(private_root)
 if __name__=="__main__": main()
