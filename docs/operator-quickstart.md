@@ -1,21 +1,21 @@
 ## Operator quickstart
 
-Install the release with an exact pin:
+Install the exact released version. The first command is:
 
 ```sh
-lmscript install github:lmctl-ai/lmauth@v0.1.X
-lmauth --version
+lmscript install github:lmctl-ai/lmauth@v0.1.8
 ```
 
-For the example use case of uploading a public draft release and sending `repository_dispatch` to `lmctl-ai/lmoffice`, first print the guided GitHub recipe:
+Confirm the installed version and print the guided recipe for the example use case: a public draft upload followed by `repository_dispatch` to `lmctl-ai/lmoffice`.
 
 ```sh
+lmauth --version
 lmauth plan --owner lmctl-ai --repos lmoffice
 ```
 
-The recipe asks the human to create a fine-grained GitHub token limited to the `lmoffice` repository, with Contents write and Metadata read, then a seven-day expiry. Those grants and repository selection are human-attested. lmauth can verify the GitHub identity and observe public repository metadata, but GitHub does not expose enough evidence here to prove the selected grant set, effective write authority, expiry policy, or organization approval. A successful public API read is not proof of write access. This example describes token setup only: lmauth does not create GitHub Actions secrets or perform uploads/dispatches in this slice.
+The plan describes a fine-grained GitHub token scoped to the `lmoffice` repository, with Contents write and Metadata read, and a seven-day expiry. The repository selection and grants are human-attested. lmauth verifies the GitHub identity and observes public repository metadata, but cannot prove the selected grant set, effective write authority, expiry policy, or organization approval. A successful API read does not prove write access.
 
-To present the operator instructions and collect/store a token, use a private lmconn database directory and trusted lmconn installation:
+To present the instructions and collect/store a token, point lmauth at a trusted lmconn installation and a new private database path:
 
 ```sh
 lmauth present --owner lmctl-ai --repos lmoffice \
@@ -24,8 +24,8 @@ lmauth present --owner lmctl-ai --repos lmoffice \
   --lmconn-db /absolute/path/to/private-directory/credentials.db
 ```
 
-The token is entered only in the local operator page (or hidden terminal prompt) and passed to the lmconn broker over stdin. lmconn stores it as non-revealable credential data. The lmauth caller and an LLM receive only random handles and a nonsecret verification summary; they never receive the token. The operator must configure any downstream GitHub Actions secret through an approved secret-management path. Do not paste a token into chat or a recipe input.
+The token is entered only in the local operator page or hidden terminal prompt. lmauth passes it to the lmconn broker over stdin; lmconn stores it as non-revealable credential data. The caller and an LLM receive only a random handle and a nonsecret verification summary. They never receive the token. The operator must configure any downstream GitHub Actions secret through the approved secret-management path. This example guides token setup; lmauth does not create secrets, upload a release, or send `repository_dispatch`.
 
-The Windows binary reports `private_store_acl_not_implemented` for storage and fails closed until native ACL checks are implemented. This slice supports the GitHub fine-grained PAT guidance flow; it does not automate browser login, prove GitHub permission grants, write Actions secrets, or isolate an agent running under the operator's OS account from every local file, browser, or debugging interface. Keep the operator browser outside agent screenshot/CDP access. npm currently produces instructions only and does not make npm API calls or store npm tokens.
+The release is built for Linux x64/arm64, macOS x64/arm64, and Windows x64. Qualification proves the sealed assets and private build provenance, exercises the exact candidate with offline dry/invocation checks, and tests the released lmmock fixture with real lmconn using synthetic markers. The native macOS lane checks terminal refusal and signal shutdown; Windows storage deliberately fails closed with `private_store_acl_not_implemented`. Qualification makes no real identity-provider requests. Human-attested grants remain unproven by the tool.
 
-The release pipeline builds five native binaries, verifies sealed checksums and private provenance, and publishes only after Linux x64/arm64, macOS x64/arm64, and Windows x64 qualification succeeds. Its public qualification uses synthetic lmmock data and a private lmconn prefix; it does not contact a real identity provider.
+Limits: this slice does not automate browser login, create GitHub secrets, or isolate an agent running under the operator's OS account from every local file, browser, or debugging interface. Keep the operator browser outside agent screenshot/CDP access. Windows credential storage stays disabled until native ACL checks are implemented. npm currently provides instructions only and does not call npm APIs or store npm credentials.
