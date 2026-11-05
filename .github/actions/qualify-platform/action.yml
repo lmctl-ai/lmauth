@@ -75,11 +75,15 @@ runs:
           echo "LMAUTH_LMMOCK_CONFIG=$LMAUTH_LMMOCK_CONFIG"
         } >> "$GITHUB_ENV"
     - name: Exercise released lmmock and real lmconn with synthetic token
-      if: runner.os != 'Windows'
+      if: runner.os == 'Linux'
       shell: bash
       env:
         EVIDENCE_DIR: ${{ runner.temp }}/lmauth-mock-lmconn-${{ inputs.name }}
       run: python3 tests/lmmock-terminal-e2e.py --binary "$LMAUTH_BIN" --evidence "$EVIDENCE_DIR" --node "$LMAUTH_NODE" --lmconn-entry "$LMAUTH_LMCONN_ENTRY" --lmmock "$LMAUTH_LMMOCK" --lmcode "$LMAUTH_LMMOCK_GITHUB" --config "$LMAUTH_LMMOCK_CONFIG"
+    - name: Verify hidden terminal consent refusal without a credential
+      if: runner.os == 'macOS'
+      shell: bash
+      run: python3 tests/terminal-pty-denial.py --binary "$LMAUTH_BIN" --node "$LMAUTH_NODE" --lmconn-entry "$LMAUTH_LMCONN_ENTRY"
     - name: Verify signal shutdown of an active local page
       if: runner.os != 'Windows'
       shell: bash
@@ -95,3 +99,4 @@ runs:
         echo "Tag: $DRAFT_TAG" >> "$GITHUB_STEP_SUMMARY"
         echo "Result: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
         if [ "$PLATFORM_NAME" = windows-x64 ]; then echo "Windows native credential storage is intentionally fail-closed: private_store_acl_not_implemented." >> "$GITHUB_STEP_SUMMARY"; fi
+        if [ "$PLATFORM_NAME" = macos-arm64 ] || [ "$PLATFORM_NAME" = macos-x64 ]; then echo "macOS runs the hidden terminal consent/refusal and signal controls; the full lmmock/lmconn terminal integration runs on Linux." >> "$GITHUB_STEP_SUMMARY"; fi

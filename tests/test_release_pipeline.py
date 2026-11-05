@@ -48,6 +48,12 @@ class CredentialBoundary(unittest.TestCase):
    source=text(file)
    self.assertIn('artifact-ids:',source)
    self.assertIn('merge-multiple: true',source,file)
+ def test_native_terminal_coverage_keeps_linux_integration_and_macos_pty_control(self):
+  action=text('.github/actions/qualify-platform/action.yml')
+  self.assertIn("if: runner.os == 'Linux'",action)
+  self.assertIn("if: runner.os == 'macOS'",action)
+  self.assertIn('tests/lmmock-terminal-e2e.py',action)
+  self.assertIn('tests/terminal-pty-denial.py',action)
  def test_actions_pinned(self):
   for f in ['.github/workflows/qualify-private-draft.yml','.github/workflows/public-ci.yml','.github/workflows/qualify-platforms.yml','.github/actions/qualify-platform/action.yml']:
    for line in text(f).splitlines():
