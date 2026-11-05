@@ -1,1 +1,17 @@
-{"format":"native-release-state/2","candidates":{}}
+{
+  "candidates": {
+    "v0.1.7": {
+      "outcome": "revoked-throwaway",
+      "private_run": "https://github.com/lmctlhq/lmauth/actions/runs/42052659589",
+      "public_run": "https://github.com/lmctl-ai/lmauth/actions/runs/42128384813",
+      "qualification_run": "https://github.com/lmctl-ai/lmauth/actions/runs/42128453893",
+      "request": {
+        "bundle_asset_id": 713828011,
+        "seal_asset_id": 713827582,
+        "seal_sha256": "fec0af3ddaf4670e5d4b59f761b1c22db344d3094ffc0826723ad25a04afb656",
+        "tag": "v0.1.7"
+      }
+    }
+  },
+  "format": "native-release-state/2"
+}
