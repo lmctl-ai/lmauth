@@ -27,6 +27,7 @@ def main():
             if base.startswith("http://127.0.0.1:"): break
         time.sleep(0.05)
     else: raise SystemExit("pinned lmmock exited before ready")
+    print("pinned lmmock ready", flush=True)
     master,slave=pty.openpty()
     def child_session(): os.setsid(); fcntl.ioctl(slave,termios.TIOCSCTTY,0)
     db=work/"store"/"creds.db"
@@ -42,9 +43,12 @@ def main():
                     safe = err.decode(errors="replace").replace(TOKEN, "[redacted synthetic canary]")
                     raise SystemExit("candidate exited before terminal prompt: " + safe)
         read_until(b"Type yes (hidden):")
+        print("candidate consent prompt received", flush=True)
         os.write(master,b"yes\n")
         read_until(b"Paste token here (hidden, never in chat):")
+        print("candidate token prompt received", flush=True)
         os.write(master,TOKEN.encode()+b"\n"); out,err=child.communicate()
+        print("candidate exited after terminal token submission", flush=True)
         while True:
             try:
                 chunk=os.read(master,4096)
@@ -56,11 +60,14 @@ def main():
         if child.returncode or TOKEN.encode() in out+err+bytes(transcript): raise SystemExit("terminal flow failed or synthetic canary leaked")
         receipt=json.loads(out)
         if not receipt.get("stored") or receipt["verification"].get("identity")!="fixture-user" or receipt["verification"].get("strictVerified") is not False: raise SystemExit("candidate verification result differs from expected human-attested fixture")
+        print("candidate verification receipt checked", flush=True)
         probe="import {DatabaseSync} from 'node:sqlite';const d=new DatabaseSync(process.argv[1]);console.log(d.prepare('select value from creds').all().some(x=>x.value===process.argv[2]));d.close();"
         result=subprocess.run([str(a.node.resolve()),"--input-type=module","-e",probe,str(db),TOKEN],capture_output=True,text=True,env=env,check=True)
         if result.stdout.strip()!="true": raise SystemExit("real lmconn did not store the synthetic mock token")
+        print("lmconn synthetic credential row verified", flush=True)
         reveal=subprocess.run([str(a.node.resolve()),str(a.lmconn_entry.resolve()),"cred","get","lmauth:"+receipt["handle"],"access_token","--reveal"],capture_output=True,text=True,env={"LMCONN_STORE_MODE":"broker","LMCONN_DB":str(db)})
         if reveal.returncode==0 or "CREDENTIAL_POLICY" not in reveal.stdout+reveal.stderr or TOKEN in reveal.stdout+reveal.stderr: raise SystemExit("lmconn did not refuse revealing the stored token")
+        print("lmconn reveal refusal verified", flush=True)
         (evidence/"integration.json").write_text(json.dumps({"lmmock":"v0.1.105","lmconn":"83cdec653e336167b55d5c1b4e5cd91f9572fce9","identity":"fixture-user","grants":"human-attested","canary_absent_from_output":True,"store_verified":True,"reveal_refused":True},indent=2)+"\n")
         print("lmmock/lmconn synthetic candidate integration passed")
     finally:
