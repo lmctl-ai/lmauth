@@ -14,7 +14,7 @@ try:
     with urllib.request.urlopen(url) as response:
         if response.status!=200: raise SystemExit("active page did not respond before signal")
     if identity(proc.pid)!=start: raise SystemExit("candidate process identity changed; refusing signal")
-    proc.send_signal(signal.SIGTERM);out,err=proc.communicate()
+    proc.send_signal(signal.SIGTERM);proc.wait();out=proc.stdout.read();err=proc.stderr.read()
     if proc.returncode!=4 or '"code":"cancelled"' not in err: raise SystemExit("SIGTERM cancellation mismatch: exit="+str(proc.returncode)+" stderr="+err)
     try:
         urllib.request.urlopen(url,timeout=2)

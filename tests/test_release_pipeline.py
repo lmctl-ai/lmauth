@@ -54,6 +54,10 @@ class CredentialBoundary(unittest.TestCase):
   self.assertIn("if: runner.os == 'macOS'",action)
   self.assertIn('tests/lmmock-terminal-e2e.py',action)
   self.assertIn('tests/terminal-pty-denial.py',action)
+ def test_signal_gate_keeps_stdin_open_until_the_process_handles_termination(self):
+  source=text('tests/session-signal.py')
+  self.assertIn('proc.send_signal(signal.SIGTERM);proc.wait()',source)
+  self.assertNotIn('proc.send_signal(signal.SIGTERM);out,err=proc.communicate()',source)
  def test_actions_pinned(self):
   for f in ['.github/workflows/qualify-private-draft.yml','.github/workflows/public-ci.yml','.github/workflows/qualify-platforms.yml','.github/actions/qualify-platform/action.yml']:
    for line in text(f).splitlines():
