@@ -124,6 +124,12 @@ class NativeAPIGates(unittest.TestCase):
   with self.assertRaises(ValueError):validate(run,jobs,'a'*40,True)
 
 class ProducerInputBinding(unittest.TestCase):
+ def test_public_manifest_preserves_the_trusted_workflow_run_number(self):
+  source=(ROOT/'scripts/stage-frozen-draft.py').read_text()
+  start=source.index('for k in [')
+  end=source.index(']',start)
+  self.assertIn("'run_number'",source[start:end])
+
  def test_private_receipt_cannot_change_the_selected_tag_or_throwaway_input(self):
   with tempfile.TemporaryDirectory() as directory:
    root=Path(directory);m,seal,request=candidate(root,throwaway=True)

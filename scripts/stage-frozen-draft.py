@@ -59,7 +59,7 @@ def main():
  if not release.get('draft') and {x['name'] for x in release['assets']}!=ALL:raise ValueError('published release has a conflicting asset set')
  payload=[]
  for name in sorted(PAYLOADS):payload.append(asset_identity(upload(api,release,name,root/name)))
- manifest={k:core[k] for k in ['repository','private_repository','workflow','branch','ref','source_sha','run_id','run_attempt','tag','version','deliberate_failure']}
+ manifest={k:core[k] for k in ['repository','private_repository','workflow','branch','ref','source_sha','run_id','run_number','run_attempt','tag','version','deliberate_failure']}
  manifest.update(format='native-release-candidate/2',assets=payload,private_run=receipt);validate_manifest(manifest);(root/MANIFEST).write_bytes(canonical(manifest))
  upload(api,release,MANIFEST,root/MANIFEST)
  (root/SUMS).write_text(''.join(digest((root/name).read_bytes())+'  '+name+'\n' for name in sorted(PAYLOADS|{MANIFEST})))

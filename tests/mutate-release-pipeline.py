@@ -15,6 +15,7 @@ mutations=[
  ('asset-id','scripts/release_policy.py',"'id':positive(asset['id'])","'id':1"),
  ('late-recheck','scripts/manage-qualified-draft.py',"policy(api,tag);release,etag=recheck(api,root,seal,request,False)","policy(api,tag)"),
  ('frozen-repair','scripts/stage-frozen-draft.py',"if any(a['name'] in {SEAL,BUNDLE} for a in release.get('assets',[])) and name!=BUNDLE:","if False:"),
+ ('stage-run-number','scripts/stage-frozen-draft.py',"'run_id','run_number','run_attempt'","'run_id','run_attempt'"),
  ('native-api-gate','scripts/qualification_broker.py',"for name in {'candidate'}|PLATFORMS:","for name in {'candidate'}:"),
  ('cancel',' .github/workflows/qualify-private-draft.yml'.strip(),"!cancelled() && ",""),
  ('queue-candidate','.github/workflows/qualify-private-draft.yml',"group: lmauth-qualification-${{ inputs.tag || github.event.client_payload.tag }}","group: one-shared-pending-slot"),
