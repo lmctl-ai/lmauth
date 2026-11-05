@@ -58,7 +58,7 @@ runs:
         EVIDENCE_DIR: ${{ runner.temp }}/lmauth-qualification-${{ inputs.name }}
       run: python3 tests/qualify-lmauth.py --binary "$LMAUTH_BIN" --platform "$PLATFORM_NAME" --evidence "$EVIDENCE_DIR"
     - name: Prepare pinned lmmock and lmconn in an isolated prefix
-      if: runner.os != 'Windows'
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         set -euo pipefail
@@ -73,6 +73,22 @@ runs:
           echo "LMAUTH_LMMOCK=$LMAUTH_LMMOCK"
           echo "LMAUTH_LMMOCK_GITHUB=$LMAUTH_LMMOCK_GITHUB"
           echo "LMAUTH_LMMOCK_CONFIG=$LMAUTH_LMMOCK_CONFIG"
+        } >> "$GITHUB_ENV"
+    - name: Prepare private paths for terminal preflight on macOS
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        set -euo pipefail
+        umask 077
+        prefix="$RUNNER_TEMP/lmauth-terminal-prefix"
+        mkdir -m 700 "$prefix"
+        cp "$(command -v node)" "$prefix/node"
+        chmod 700 "$prefix/node"
+        printf '%s\n' '// not executed after consent refusal' > "$prefix/lmconn.js"
+        chmod 600 "$prefix/lmconn.js"
+        {
+          echo "LMAUTH_NODE=$prefix/node"
+          echo "LMAUTH_LMCONN_ENTRY=$prefix/lmconn.js"
         } >> "$GITHUB_ENV"
     - name: Exercise released lmmock and real lmconn with synthetic token
       if: runner.os == 'Linux'
