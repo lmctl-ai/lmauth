@@ -3,7 +3,7 @@
 Install the exact released version. The first command is:
 
 ```sh
-lmscript install github:lmctl-ai/lmauth@v0.1.9
+lmscript install github:lmctl-ai/lmauth@v0.1.10
 ```
 
 Confirm the installed version and print the guided recipe for the example use case: a public draft upload followed by `repository_dispatch` to `lmctl-ai/lmoffice`.
