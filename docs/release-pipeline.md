@@ -42,9 +42,59 @@ gh release list --repo lmctl-ai/lmauth --limit 10
 
 Private publish-job retries reuse and verify the original frozen bytes. Do not rerun the full workflow for the same candidate after sealing. Public `workflow_dispatch` is only a replay of a previously recorded candidate; it is not authority to select an unrecorded release.
 
+## Redrive a sealed candidate
+
+If public qualification has a real runner/test failure and the draft is still sealed and unrevoked, rerun only the original private publisher job. This re-verifies and redispatches the existing frozen assets without allocating a new version:
+
+```sh
+gh run view PRIVATE_RUN --repo lmctlhq/lmauth --json jobs --jq '.jobs[] | select(.name=="publish-draft") | .databaseId'
+gh run rerun --repo lmctlhq/lmauth --job PUBLISH_DRAFT_JOB_ID
+```
+
+Do not use this route to change source or repair a frozen asset. A source change requires a new manual private dispatch and a new run-number version.
+
+## Recorded-tag replay refusal
+
+Replay only asks the public broker to recheck a candidate already present in `release-state.json`; it does not authorize an unrecorded draft. These commands must fail closed before asset download for revoked and older-than-Latest recorded tags:
+
+```sh
+gh workflow run qualify-private-draft.yml --repo lmctl-ai/lmauth --ref main -f tag=REVOKED_TAG
+gh workflow run qualify-private-draft.yml --repo lmctl-ai/lmauth --ref main -f tag=OLDER_PUBLISHED_TAG
+gh workflow run qualify-private-draft.yml --repo lmctl-ai/lmauth --ref main -f tag=UNRECORDED_TAG
+```
+
+Use a previously recorded `REVOKED_TAG` and a previously published `OLDER_PUBLISHED_TAG`; an unrecorded draft (including partial `v0.1.6`) is rejected before it can be treated as a candidate.
+
 ## Rollback
 
-Rollback is an operator incident action, not a pipeline job. First stop new dispatch/replay and wait for any active broker to finish. Append the bad tag and incident reason to the public `REVOKED` file and push that append to `main`. Verify it landed before changing release visibility or Latest. Then mark the bad release as a prerelease and move Latest to a known-good published tag. If policy requires deleting the release object, delete without `--cleanup-tag`; never reuse the immutable tag. Installed binaries and caches do not roll back automatically.
+Rollback is an operator incident action, not a pipeline job. **Record the revocation first.** Pause new dispatch/replay and wait for any active broker to finish. Then append and push the revocation before changing release visibility or Latest:
+
+```sh
+read -r -p 'Bad tag to revoke: ' BAD_TAG
+read -r -p 'Known-good published tag: ' GOOD_TAG
+read -r -p 'Incident reference: ' INCIDENT_REFERENCE
+git fetch origin
+git switch main
+git pull --ff-only origin main
+printf '%s\n' "$BAD_TAG operator rollback: $INCIDENT_REFERENCE" >> REVOKED
+git add REVOKED
+git commit -m "Revoke $BAD_TAG after $INCIDENT_REFERENCE"
+git push origin main
+git show origin/main:REVOKED
+```
+
+Only after confirming the append landed, mark the bad release as a prerelease and move Latest to a known-good published tag:
+
+```sh
+gh release edit "$BAD_TAG" --repo lmctl-ai/lmauth --prerelease --latest=false
+gh release edit "$GOOD_TAG" --repo lmctl-ai/lmauth --latest
+```
+
+If policy requires removing the release object, use `gh release delete "$BAD_TAG" --repo lmctl-ai/lmauth --yes` without `--cleanup-tag`; never reuse the immutable tag. Installed binaries and caches do not roll back automatically.
+
+## Retained unsealed draft
+
+The public `v0.1.6` draft came from private run `42049931375` and contains only the six initial binary/license assets. It has no `RELEASE-MANIFEST.json`, `SHA256SUMS`, frozen identity, or provenance, and is absent from `REVOKED` and `release-state.json`. It is not an eligible sealed throwaway cleanup. Leave it unpublished and do not delete it by hand; the trusted sealed cleanup route cannot authenticate this partial object.
 
 ## Porting notes
 

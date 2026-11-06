@@ -11,7 +11,7 @@ def validate_qualification(run,jobs,source_sha,throwaway):
   matches=[j for j in jobs if j['name']==name]
   if len(matches)!=1 or matches[0]['status']!='completed' or matches[0]['conclusion']!='success':raise ValueError('required native qualification did not pass: '+name)
  control=[j for j in jobs if j['name']=='deliberate-failure-test']
- if len(control)!=1:raise ValueError('missing deliberate-test result')
+ if len(control)!=1 or control[0].get('status')!='completed':raise ValueError('missing or incomplete deliberate-test result')
  expected='failure' if throwaway else 'skipped'
  if control[0]['conclusion']!=expected or run.get('conclusion')!=('failure' if throwaway else 'success'):raise ValueError('unexpected failure/control result')
 

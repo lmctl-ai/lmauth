@@ -122,6 +122,12 @@ class NativeAPIGates(unittest.TestCase):
   with self.assertRaises(ValueError):validate(run,jobs,'a'*40,False)
   jobs[-1]['conclusion']='skipped'
   with self.assertRaises(ValueError):validate(run,jobs,'a'*40,True)
+ def test_throwaway_control_must_be_completed_before_cleanup(self):
+  module=runpy.run_path(str(ROOT/'scripts/qualification_broker.py'));validate=module['validate_qualification']
+  run={'path':'.github/workflows/qualify-platforms.yml','head_branch':'main','head_sha':'a'*40,'event':'repository_dispatch','status':'completed','conclusion':'failure'}
+  jobs=[{'name':n,'status':'completed','conclusion':'success'} for n in ['candidate','Qualify macos-arm64','Qualify macos-x64','Qualify linux-x64','Qualify linux-arm64','Qualify windows-x64']]
+  jobs.append({'name':'deliberate-failure-test','status':'in_progress','conclusion':'failure'})
+  with self.assertRaises(ValueError):validate(run,jobs,'a'*40,True)
 
 class ProducerInputBinding(unittest.TestCase):
  def test_public_manifest_preserves_the_trusted_workflow_run_number(self):

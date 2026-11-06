@@ -43,7 +43,7 @@ runs:
     - name: Install the exact draft binary through lmscript
       shell: bash
       env:
-        DRAFT_TAG: ${{ inputs.tag || github.event.client_payload.tag }}
+        DRAFT_TAG: ${{ env.LMAUTH_QUALIFY_TAG || inputs.tag || github.event.client_payload.tag }}
         DRAFT_ASSET: ${{ inputs.asset }}
       run: |
         set -euo pipefail
@@ -105,10 +105,10 @@ runs:
       shell: bash
       run: python3 tests/session-signal.py --binary "$LMAUTH_BIN"
     - name: Summarize platform qualification
-      if: always()
+      if: always() && !cancelled()
       shell: bash
       env:
-        DRAFT_TAG: ${{ inputs.tag || github.event.client_payload.tag }}
+        DRAFT_TAG: ${{ env.LMAUTH_QUALIFY_TAG || inputs.tag || github.event.client_payload.tag }}
         PLATFORM_NAME: ${{ inputs.name }}
       run: |
         echo "## $PLATFORM_NAME lmauth qualification" >> "$GITHUB_STEP_SUMMARY"

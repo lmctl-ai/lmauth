@@ -3,6 +3,9 @@
 from pathlib import Path
 import json,os,shutil,subprocess,sys,tempfile
 ROOT=Path(__file__).resolve().parents[1]
+state=json.loads((ROOT/'release-state.json').read_text())
+published=[tag for tag,candidate in state['candidates'].items() if candidate['outcome']=='published']
+latest_tag=max(published,key=lambda tag:tuple(int(part) for part in tag[1:].split('.')))
 mutations=[
  ('credential-inheritance','scripts/release_policy.py',"return {k:v for k,v in env.items() if k not in {'GH_TOKEN','GITHUB_TOKEN','GH_ENTERPRISE_TOKEN','GITHUB_ENTERPRISE_TOKEN','ACTIONS_ID_TOKEN_REQUEST_TOKEN','ACTIONS_ID_TOKEN_REQUEST_URL'}}",'return dict(env)'),
  ('producer-identity','scripts/release_policy.py',"m.get('private_repository')!=PRIVATE","False"),
@@ -23,12 +26,26 @@ mutations=[
  ('artifact-layout','.github/actions/qualify-platform/action.yml','merge-multiple: true','merge-multiple: false'),
  ('action-pin','.github/workflows/qualify-private-draft.yml','actions/checkout@11d5960a326750d5838078e36cf38b85af677262','actions/checkout@v4'),
  ('doc-permissions','docs/release-pipeline.md','| promote | contents:write; actions:read |','| promote | contents:read; actions:read |'),
+ ('throwaway-control-status','scripts/qualification_broker.py',"control[0].get('status')!='completed'",'False'),
+ ('action-cancel','.github/actions/qualify-platform/action.yml','if: always() && !cancelled()','if: always()'),
+ ('qualify-tag','.github/workflows/qualify-platforms.yml','LMAUTH_QUALIFY_TAG: ${{ needs.candidate.outputs.tag }}',"LMAUTH_QUALIFY_TAG: ''"),
+ ('deliberate-macos-arm64','.github/workflows/qualify-platforms.yml','needs: [candidate, qualify-macos-arm64, integration]','needs: [candidate, integration]'),
+ ('runbook-redrive','docs/release-pipeline.md','gh run rerun --repo lmctlhq/lmauth --job PUBLISH_DRAFT_JOB_ID','gh run rerun --repo lmctlhq/lmauth --job WRONG_JOB_ID'),
+ ('runbook-revocation-first','docs/release-pipeline.md','git add REVOKED','git add docs/release-pipeline.md'),
+ ('unsealed-v016-note','docs/release-pipeline.md','The public `v0.1.6` draft came from','The public partial draft came from'),
+ ('copied-pilot-state','release-state.json','https://github.com/lmctlhq/lmauth/actions/','https://github.com/lmctlhq/lmoffice/actions/'),
+ ('copied-pilot-revoked','REVOKED','v0.1.7 sealed throwaway qualification failure','v0.1.60 copied lmoffice pilot'),
+ ('stale-readme-pin','README.md',f'github:lmctl-ai/lmauth@{latest_tag}','github:lmctl-ai/lmauth@v0.0.0'),
+ ('worker-run-name','.github/workflows/qualify-platforms.yml','run-name: Qualify artifact','run-name: Qualify lmauth artifact'),
 ]
 with tempfile.TemporaryDirectory(prefix='release-mutations-') as temporary:
  root=Path(temporary)
  for name in ['scripts','tests','.github','docs']:
   shutil.copytree(ROOT/name,root/name,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
  shutil.copy2(ROOT/'release-policy.json',root/'release-policy.json')
+ shutil.copy2(ROOT/'REVOKED',root/'REVOKED')
+ shutil.copy2(ROOT/'release-state.json',root/'release-state.json')
+ shutil.copy2(ROOT/'README.md',root/'README.md')
  command=[sys.executable,'-B','-m','unittest','discover','-s','tests','-p','test_release*.py']
  baseline=subprocess.run(command,cwd=root,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
  if baseline.returncode:sys.stdout.buffer.write(baseline.stdout);raise SystemExit('mutation baseline is not green')

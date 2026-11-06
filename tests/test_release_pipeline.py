@@ -59,6 +59,73 @@ class CredentialBoundary(unittest.TestCase):
   source=text('tests/session-signal.py')
   self.assertIn('proc.send_signal(signal.SIGTERM);proc.wait()',source)
   self.assertNotIn('proc.send_signal(signal.SIGTERM);out,err=proc.communicate()',source)
+ def test_every_always_step_stops_when_cancelled(self):
+  files=['.github/actions/qualify-platform/action.yml','.github/workflows/qualify-private-draft.yml','.github/workflows/qualify-platforms.yml','.github/workflows/public-ci.yml']
+  for file in files:
+   for line in text(file).splitlines():
+    if 'always()' in line:
+     self.assertIn('!cancelled()',line,file+': '+line)
+ def test_each_platform_leg_receives_the_verified_lmauth_tag(self):
+  jobs=job_blocks()
+  expected='LMAUTH_QUALIFY_TAG: ${{ needs.candidate.outputs.tag }}'
+  self.assertIn(expected,jobs['qualify-macos-arm64'])
+  self.assertIn(expected,jobs['integration'])
+  self.assertIn('env.LMAUTH_QUALIFY_TAG',text('.github/actions/qualify-platform/action.yml'))
+ def test_throwaway_gate_waits_for_macos_arm64_directly(self):
+  body=job_blocks()['deliberate-failure-test']
+  self.assertIn('needs: [candidate, qualify-macos-arm64, integration]',body)
+  self.assertIn("needs.qualify-macos-arm64.result == 'success'",body)
+ def test_runbook_has_redrive_replay_rollback_and_stale_draft_note(self):
+  doc=text('docs/release-pipeline.md')
+  self.assertIn('gh run rerun --repo lmctlhq/lmauth --job PUBLISH_DRAFT_JOB_ID',doc)
+  self.assertIn('gh workflow run qualify-private-draft.yml --repo lmctl-ai/lmauth --ref main -f tag=UNRECORDED_TAG',doc)
+  self.assertIn('git add REVOKED',doc)
+  self.assertLess(doc.index('git add REVOKED'),doc.index('gh release edit "$BAD_TAG"'))
+  self.assertIn('The public `v0.1.6` draft came from private run `42049931375`',doc)
+  self.assertIn('It is not an eligible sealed throwaway cleanup.',doc)
+ def test_readme_and_quickstart_pin_latest_published_lmauth(self):
+  state=json.loads(text('release-state.json'))
+  published=[tag for tag,item in state['candidates'].items() if item['outcome']=='published']
+  latest=max(published,key=lambda tag:tuple(int(part) for part in tag[1:].split('.')))
+  pin='github:lmctl-ai/lmauth@'+latest
+  self.assertIn(pin,text('README.md'))
+  self.assertIn(pin,text('docs/operator-quickstart.md'))
+ def test_lmauth_tool_dependencies_are_explicitly_pinned(self):
+  setup=text('tests/prepare-integration.sh')
+  self.assertIn('LMMOCK_TAG=v0.1.105',setup)
+  self.assertIn('LMMOCK_COMMIT=e9d6d7ffe8bf68f42bbfa8438130f2f2aa538542',setup)
+  self.assertIn('sha256sum -c -',setup)
+  self.assertIn('LMCONN_COMMIT=83cdec653e336167b55d5c1b4e5cd91f9572fce9',setup)
+  self.assertIn('LMCTL_VERSION=0.2.462',setup)
+  self.assertIn('@lmctl-ai/lmctl@0.2.462',text('.github/actions/qualify-platform/action.yml'))
+ def test_public_release_state_has_no_foreign_pilot_records(self):
+  state=json.loads(text('release-state.json'))
+  self.assertEqual(state['format'],'native-release-state/2')
+  for tag,record in state['candidates'].items():
+   self.assertEqual(record['request']['tag'],tag)
+   self.assertIn('github.com/lmctlhq/lmauth/actions/',record['private_run'])
+   self.assertIn('github.com/lmctl-ai/lmauth/actions/',record['public_run'])
+  self.assertNotIn('lmoffice',text('REVOKED')+text('release-state.json'))
+ def test_candidate_shell_inputs_are_passed_through_environment(self):
+  for file in ['.github/workflows/qualify-private-draft.yml','.github/workflows/qualify-platforms.yml','.github/actions/qualify-platform/action.yml']:
+   in_run=False
+   for line in text(file).splitlines():
+    stripped=line.lstrip()
+    if stripped.startswith('run:'):
+     in_run=True
+    elif in_run and stripped.startswith('- name:'):
+     in_run=False
+    if in_run:
+     self.assertNotIn('${{ inputs.',line,file+': '+line)
+ def test_broker_correlation_title_matches_worker_run_name(self):
+  broker=text('scripts/qualification_broker.py')
+  workflow=text('.github/workflows/qualify-platforms.yml')
+  title=next(line for line in workflow.splitlines() if line.startswith('run-name: ')).split(': ',1)[1]
+  title=title.replace('${{ github.event.client_payload.parent_run_id }}','PARENT_RUN_ID')
+  title=title.replace('${{ github.event.client_payload.parent_attempt }}','PARENT_ATTEMPT')
+  title=title.replace('${{ github.event.client_payload.tag }}','TAG')
+  self.assertEqual(title,'Qualify artifact PARENT_RUN_ID.PARENT_ATTEMPT TAG')
+  self.assertIn("title=f'Qualify artifact {parent}.{attempt} {tag}'",broker)
  def test_actions_pinned(self):
   for f in ['.github/workflows/qualify-private-draft.yml','.github/workflows/public-ci.yml','.github/workflows/qualify-platforms.yml','.github/actions/qualify-platform/action.yml']:
    for line in text(f).splitlines():
