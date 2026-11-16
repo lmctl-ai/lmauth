@@ -1,0 +1,104 @@
+name: npm publish
+
+# Publishes the release binaries of lmauth to npmjs as @lmctl-ai/lmauth (launcher) plus one
+# @lmctl-ai/lmauth-OS-CPU package per platform, through npm trusted publishing (OIDC): no npm token exists
+# anywhere. Triggers: a published release, a manual run for one tag, and an hourly check that publishes the latest
+# release when npm does not have it yet (a release created with the workflow token starts no other workflow).
+# The binaries are the ones the release already carries; this workflow only repackages them after checking
+# SHA256SUMS. A version that is already on npm is skipped, so every run is safe to repeat.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish (default is the latest release)
+        required: false
+        default: ''
+  schedule:
+    - cron: '17 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Trusted publishing needs npm 11.5.1 or newer
+        run: npm install -g npm@11.19.1 && npm --version
+      - name: Resolve the release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          tag="${EVENT_TAG:-${INPUT_TAG:-}}"
+          if [ -z "$tag" ]; then tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease --jq 'select(.isDraft|not) | .tagName')"; fi
+          [[ "$tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]] || { echo "release tag '$tag' is not vMAJOR.MINOR.PATCH" >&2; exit 1; }
+          version="${BASH_REMATCH[1]}"
+          # the launcher is published last, so its presence means every platform package is already out
+          if npm view "@lmctl-ai/lmauth@${version}" version >/dev/null 2>&1; then
+            echo "@lmctl-ai/lmauth@${version} is already on npm; nothing to do"
+            echo "todo=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "todo=true" >> "$GITHUB_OUTPUT"; echo "tag=$tag" >> "$GITHUB_OUTPUT"; echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Get lmauth, which fetches the release, checks every binary against SHA256SUMS and builds the packages
+        if: steps.release.outputs.todo == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # lmauth publishes its own packages with the binary of the release being published (checked below), so a new lmauth can ship before npm has it
+          mkdir -p "$RUNNER_TEMP/bin"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/bin" -p 'lmauth-linux-x64' -p SHA256SUMS
+          (cd "$RUNNER_TEMP/bin" && sha256sum -c --ignore-missing SHA256SUMS && grep -q ' \*\?lmauth-linux-x64$' SHA256SUMS)
+          chmod +x "$RUNNER_TEMP/bin/lmauth-linux-x64"
+          LMAUTH="$RUNNER_TEMP/bin/lmauth-linux-x64"
+          "$LMAUTH" --version
+          echo "LMAUTH=$LMAUTH" >> "$GITHUB_ENV"
+      - name: Build the packages
+        if: steps.release.outputs.todo == 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          "$LMAUTH" npm-prepare --repo "$GITHUB_REPOSITORY" --name lmauth --release-tag "$TAG" --description "Guided, LLM-drivable authorization helper: click-through token setup that never shows the secret to the caller" --target linux-x64=lmauth-linux-x64 --target linux-arm64=lmauth-linux-arm64 --target darwin-x64=lmauth-macos-x64 --target darwin-arm64=lmauth-macos-arm64 --target windows-x64=lmauth-windows-x64.exe --out "$RUNNER_TEMP/out" | tee order.jsonl
+      - name: Publish (platform packages first, launcher last)
+        if: steps.release.outputs.todo == 'true'
+        run: |
+          set -euo pipefail
+          while IFS= read -r line; do
+            name="$(node -p 'JSON.parse(process.argv[1]).name' "$line")"
+            dir="$(node -p 'JSON.parse(process.argv[1]).dir' "$line")"
+            version="$(node -p 'JSON.parse(process.argv[1]).version' "$line")"
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then echo "${name}@${version} already published"; continue; fi
+            echo "publishing ${name}@${version}"
+            npm publish "./${dir#./}" --access public
+          done < order.jsonl
+      - name: Smoke test the published launcher
+        if: steps.release.outputs.todo == 'true'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          sleep 20
+          mkdir smoke && cd smoke && npm init -y >/dev/null
+          for i in $(seq 1 30); do npm install --no-audit --no-fund "@lmctl-ai/lmauth@${VERSION}" && break || sleep 20; done
+          ./node_modules/.bin/lmauth --version

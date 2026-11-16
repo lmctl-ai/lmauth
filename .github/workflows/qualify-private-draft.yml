@@ -60,3 +60,16 @@ jobs:
           ARTIFACT_ID: ${{ steps.handoff.outputs.artifact-id }}
           ARTIFACT_DIGEST: ${{ steps.handoff.outputs.artifact-digest }}
         run: python3 scripts/qualification_broker.py
+  # The release is now public and was qualified end to end; hand it to npm. A release made with the workflow token starts no other
+  # workflow, so dispatch npm-publish.yml (the trusted publisher on npm) directly.
+  npm:
+    needs: promote
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - name: Publish the release to npm
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.event.client_payload.tag }}
+        run: gh workflow run npm-publish.yml --repo "$GITHUB_REPOSITORY" --ref main -f tag="$TAG"
