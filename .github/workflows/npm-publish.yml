@@ -90,7 +90,8 @@ jobs:
             version="$(node -p 'JSON.parse(process.argv[1]).version' "$line")"
             if npm view "${name}@${version}" version >/dev/null 2>&1; then echo "${name}@${version} already published"; continue; fi
             echo "publishing ${name}@${version}"
-            npm publish "./${dir#./}" --access public
+            publish_dir="$dir"; case "$dir" in /*) ;; *) publish_dir="./$dir" ;; esac
+            npm publish "$publish_dir" --access public
           done < order.jsonl
       - name: Smoke test the published launcher
         if: steps.release.outputs.todo == 'true'
