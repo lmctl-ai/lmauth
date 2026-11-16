@@ -57,31 +57,37 @@ jobs:
             echo "@lmctl-ai/lmauth@${version} is already on npm; nothing to do"
             echo "todo=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          echo "todo=true" >> "$GITHUB_OUTPUT"; echo "tag=$tag" >> "$GITHUB_OUTPUT"; echo "version=$version" >> "$GITHUB_OUTPUT"
-      - name: Get lmauth, which fetches the release, checks every binary against SHA256SUMS and builds the packages
+          # an older release published late (a manual run for an old tag) must not take the latest dist-tag
+          current="$(npm view "@lmctl-ai/lmauth" dist-tags.latest 2>/dev/null || true)"
+          disttag=latest
+          if [ -n "$current" ] && [ "$(printf '%s\n%s\n' "$current" "$version" | sort -V | tail -n1)" != "$version" ]; then disttag=backfill; fi
+          echo "todo=true" >> "$GITHUB_OUTPUT"; echo "tag=$tag" >> "$GITHUB_OUTPUT"; echo "version=$version" >> "$GITHUB_OUTPUT"; echo "disttag=$disttag" >> "$GITHUB_OUTPUT"
+      - name: Download and check the release assets
         if: steps.release.outputs.todo == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
-          # lmauth publishes its own packages with the binary of the release being published (checked below), so a new lmauth can ship before npm has it
-          mkdir -p "$RUNNER_TEMP/bin"
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/bin" -p 'lmauth-linux-x64' -p SHA256SUMS
-          (cd "$RUNNER_TEMP/bin" && sha256sum -c --ignore-missing SHA256SUMS && grep -q ' \*\?lmauth-linux-x64$' SHA256SUMS)
-          chmod +x "$RUNNER_TEMP/bin/lmauth-linux-x64"
-          LMAUTH="$RUNNER_TEMP/bin/lmauth-linux-x64"
-          "$LMAUTH" --version
-          echo "LMAUTH=$LMAUTH" >> "$GITHUB_ENV"
+          mkdir assets
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir assets --pattern 'lmauth-linux-x64' --pattern 'lmauth-linux-arm64' --pattern 'lmauth-macos-x64' --pattern 'lmauth-macos-arm64' --pattern 'lmauth-windows-x64.exe' --pattern 'SHA256SUMS' --pattern 'LICENSE'
+          cd assets
+          sha256sum -c --ignore-missing SHA256SUMS
+          # the check above skips names SHA256SUMS lacks, so require an entry for each binary we package
+          for f in lmauth-linux-x64 lmauth-linux-arm64 lmauth-macos-x64 lmauth-macos-arm64 lmauth-windows-x64.exe; do grep -qE " \*?${f//./\\.}\$" SHA256SUMS || { echo "SHA256SUMS has no entry for $f" >&2; exit 1; }; done
       - name: Build the packages
         if: steps.release.outputs.todo == 'true'
         env:
-          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
-          "$LMAUTH" npm-prepare --repo "$GITHUB_REPOSITORY" --name lmauth --release-tag "$TAG" --description "Guided, LLM-drivable authorization helper: click-through token setup that never shows the secret to the caller" --target linux-x64=lmauth-linux-x64 --target linux-arm64=lmauth-linux-arm64 --target darwin-x64=lmauth-macos-x64 --target darwin-arm64=lmauth-macos-arm64 --target windows-x64=lmauth-windows-x64.exe --out "$RUNNER_TEMP/out" | tee order.jsonl
+          license=LICENSE; [ -f "$license" ] || license=assets/LICENSE
+          node scripts/npm-packages.mjs --name lmauth --version "$VERSION" --assets assets --out out --license "$license" \
+            --repo "$GITHUB_REPOSITORY" --description "Guided, LLM-drivable authorization helper: click-through token setup that never shows the secret to the caller" --target linux-x64=lmauth-linux-x64 --target linux-arm64=lmauth-linux-arm64 --target darwin-x64=lmauth-macos-x64 --target darwin-arm64=lmauth-macos-arm64 --target windows-x64=lmauth-windows-x64.exe | tee order.jsonl
       - name: Publish (platform packages first, launcher last)
         if: steps.release.outputs.todo == 'true'
+        env:
+          DIST_TAG: ${{ steps.release.outputs.disttag }}
         run: |
           set -euo pipefail
           while IFS= read -r line; do
@@ -90,8 +96,7 @@ jobs:
             version="$(node -p 'JSON.parse(process.argv[1]).version' "$line")"
             if npm view "${name}@${version}" version >/dev/null 2>&1; then echo "${name}@${version} already published"; continue; fi
             echo "publishing ${name}@${version}"
-            publish_dir="$dir"; case "$dir" in /*) ;; *) publish_dir="./$dir" ;; esac
-            npm publish "$publish_dir" --access public
+            npm publish "./${dir#./}" --access public --tag "$DIST_TAG"
           done < order.jsonl
       - name: Smoke test the published launcher
         if: steps.release.outputs.todo == 'true'
