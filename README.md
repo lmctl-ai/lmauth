@@ -7,11 +7,15 @@ lmauth provides a GitHub authorization recipe, a local operator page or hidden t
 ## Install
 
 ```sh
-lmscript install github:lmctl-ai/lmauth@v0.1.13
+lmscript install github:lmctl-ai/lmauth@v0.1.15
 lmauth --version
 ```
 
 [Read the operator quickstart](docs/operator-quickstart.md) for the pinned install, the public draft upload and repository-dispatch example for `lmctl-ai/lmoffice`, the human-attestation boundary, and the storage limits.
+
+## Storage and encryption
+
+Credentials are stored by lmconn, which encrypts its store at rest (see lmconn's `docs/encryption-at-rest.md`); lmauth and lmconn share that one store and one key, and lmauth never reads the key. `--lmconn-key-file ABS` (optional) names lmconn's instance key file, which must live in a private directory other than the database's; lmauth passes it on as `LMCONN_KEY_FILE` and never passes `LMCONN_KEY`. On Windows file keys fail closed.
 
 ## Releases
 
