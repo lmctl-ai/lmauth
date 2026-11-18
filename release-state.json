@@ -24,6 +24,18 @@
         "tag": "v0.1.13"
       }
     },
+    "v0.1.15": {
+      "outcome": "published",
+      "private_run": "https://github.com/lmctlhq/lmauth/actions/runs/44409195180",
+      "public_run": "https://github.com/lmctl-ai/lmauth/actions/runs/44410067540",
+      "qualification_run": "https://github.com/lmctl-ai/lmauth/actions/runs/44410164977",
+      "request": {
+        "bundle_asset_id": 765214197,
+        "seal_asset_id": 765213977,
+        "seal_sha256": "510aaeb1573dabeb72a767e0f64b6ef6a31ffead8c1f9eb28e918a8aa740454c",
+        "tag": "v0.1.15"
+      }
+    },
     "v0.1.7": {
       "outcome": "revoked-throwaway",
       "private_run": "https://github.com/lmctlhq/lmauth/actions/runs/42052659589",
