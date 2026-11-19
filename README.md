@@ -1,5 +1,7 @@
 # lmauth
 
+Documentation: [Quick reference](https://www.lmctl.com/tools/lmauth/) · [LLM skill](https://www.lmctl.com/tools/lmauth/skill.html) · [Guide](https://www.lmctl.com/tools/lmauth/guide.html) · [Reference](https://www.lmctl.com/tools/lmauth/reference.html)
+
 Guided, LLM-drivable authorization helper: click-through token setup that never shows the secret to the caller.
 
 lmauth provides a GitHub authorization recipe, a local operator page or hidden terminal prompt, identity and public-repository verification, and write-only storage through the lmconn broker. The caller receives random handles and nonsecret summaries. The current slice does not prove token permissions or create GitHub Actions secrets.
