@@ -15,6 +15,10 @@ lmauth --version
 
 [Read the operator quickstart](docs/operator-quickstart.md) for the pinned install, the public draft upload and repository-dispatch example for `lmctl-ai/lmoffice`, the human-attestation boundary, and the storage limits.
 
+## Publishing to npm
+
+`lmauth publish` packs a package, signs in to npm through a page of approval links (you only click), publishes, and sets the package's trusted publisher so the repository's GitHub workflow can publish later versions with no token. [Read npm-publish.md](docs/npm-publish.md) for the setup, the command and what you click.
+
 ## Storage and encryption
 
 Credentials are stored by lmconn, which encrypts its store at rest (see lmconn's `docs/encryption-at-rest.md`); lmauth and lmconn share that one store and one key, and lmauth never reads the key. `--lmconn-key-file ABS` (optional) names lmconn's instance key file, which must live in a private directory other than the database's; lmauth passes it on as `LMCONN_KEY_FILE` and never passes `LMCONN_KEY`. On Windows file keys fail closed.
